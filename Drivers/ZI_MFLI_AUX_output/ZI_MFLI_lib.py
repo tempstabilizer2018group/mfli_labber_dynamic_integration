@@ -15,8 +15,10 @@ import sys
 #     sys.path.insert(0, cmd_folder)
 
 
-cmd_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.append(cmd_folder)
+libs_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'python_libs', sys.platform))
+# list_directory: .../Drivers/python_libs/linux2
+assert os.path.exists(libs_directory), 'Directory does not exist: {}'.format(libs_directory)
+sys.path.append(libs_directory)
 
 import zhinst
 import zhinst.ziPython
@@ -37,6 +39,7 @@ class Zi_Device:
     def __init__(self, dev):
         """Perform the operation of opening the instrument connection"""
         assert dev != ''
+        self.voltage = 0.0
         self.dev = dev
         try:
             # self.log("Descover Zurich Instruments device \"" + self.dev + "\"..")
@@ -98,17 +101,20 @@ class Zi_Device:
             self.setValue('/auxouts/{}/limitlower'.format(channel), -10.0)
             self.setValue('/auxouts/{}/limitupper'.format(channel), 10.0)
 
+    def get_voltage(self):
+        return self.voltage
+
     def set_voltage(self, v):
-            v = int(v)
-            outputs = {
-                0: (10, 10, 10),
-                1: (10, 10,  0),
-                2: (10,  0,  0),
-                3: ( 0, 10, 10),
-                4: ( 0,  0, 10),
-            }
-            for channel, output in enumerate(outputs.get(v, (0, 0, 0))):
-                self.setValue('/auxouts/{}/offset'.format(channel), float(output))
+        self.voltage = int(v)
+        outputs = {
+            0: (10, 10, 10),
+            1: (10, 10,  0),
+            2: (10,  0,  0),
+            3: ( 0, 10, 10),
+            4: ( 0,  0, 10),
+        }
+        for channel, output in enumerate(outputs.get(self.voltage, (0, 0, 0))):
+            self.setValue('/auxouts/{}/offset'.format(channel), float(output))
 
 
 

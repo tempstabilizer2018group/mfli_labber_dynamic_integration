@@ -29,7 +29,7 @@ class Driver(InstrumentDriver.InstrumentWorker):
         """Perform the operation of opening the instrument connection"""
 
         self.log("AAA", level=30)
-        self.log("A: " + self.comCfg.address)
+        self.log("A: " + self.comCfg.address, level=30)
 
         self.ziDevice = ZI_MFLI_lib.Zi_Device(self.comCfg.address)
 
@@ -40,9 +40,10 @@ class Driver(InstrumentDriver.InstrumentWorker):
         self.ziDevice.disconnect()
 
     def performSetValue(self, quant, value, sweepRate=0.0, options={}):
-        """Perform the Set Value instrument operation. This function should
-        return the actual value set by the instrument"""
         if quant.name in ['Voltage',]:
-            value = quant.getValue()
             self.ziDevice.set_voltage(value)
+            return self.ziDevice.get_voltage()
 
+    def performGetValue(self, quant, options={}):
+        if quant.name in ['Voltage',]:
+            return self.ziDevice.get_voltage()
