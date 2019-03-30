@@ -3,21 +3,9 @@
 import os
 import sys
 
-# sys.path.insert(0, r'C:\Program Files (x86)\Labber\python-labber\multiproc-include\py37')
-#Some stuff to import ziPython from a relative path independent from system wide installations
-# cmd_folder = os.path.abspath(os.path.dirname(__file__))
-# if cmd_folder not in sys.path:
-#     sys.path.insert(0, cmd_folder)
-
 import InstrumentDriver
 
-
-__version__  = '1.1'
-
-#Some stuff to import ziPython from a relative path independent from system wide installations
-# cmd_folder = os.path.abspath(os.path.dirname(__file__))
-# if cmd_folder not in sys.path:
-#     sys.path.insert(0, cmd_folder)
+__version__  = '0.9'
 
 
 import ZI_MFLI_lib
@@ -28,7 +16,6 @@ class Driver(InstrumentDriver.InstrumentWorker):
     def performOpen(self, options={}):
         """Perform the operation of opening the instrument connection"""
 
-        self.log("AAA", level=30)
         self.log("A: " + self.comCfg.address, level=30)
 
         self.ziDevice = ZI_MFLI_lib.Zi_Device(self.comCfg.address)
