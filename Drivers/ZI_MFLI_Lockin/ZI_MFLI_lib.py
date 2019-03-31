@@ -41,8 +41,8 @@ ch.setFormatter(formatter)
 # add ch to logger
 logger.addHandler(ch)
 
-# logger.setLevel(logging.DEBUG)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.INFO)
 
 import zhinst
 import zhinst.ziPython
@@ -50,7 +50,10 @@ import zhinst.ziPython
 # import zhinst.ziPython as zi
 # import zhinst
 # import zhinst.utils
+import criterion
 
+def statistics_time_add(*args):
+    pass
 
 try:
     import InstrumentDriver
@@ -66,6 +69,7 @@ class Zi_Device:
         assert dev != ''
         self.voltage = 0.0
         self.dev = dev
+        self.set_criterion(criterion.CriterionSimple.__name__)
         try:
             # self.log("Descover Zurich Instruments device \"" + self.dev + "\"..")
             discovery = zhinst.ziPython.ziDiscovery()
@@ -82,6 +86,17 @@ class Zi_Device:
 
     def disconnect(self):
         self.daq.disconnect()
+
+    def set_criterion(self, criterion_name):
+        if criterion_name == '':
+            criterion_name = criterion.CriterionSimple.__name__
+        self.criterion_name = criterion_name
+        self.criterion_class = getattr(criterion, self.criterion_name, None)
+        if self.criterion_class is None:
+            raise Exception('Unknown class for criterion "{}"! "{}" is a valid class name'.format(self.criterion_name, criterion.CriterionSimple.__name__))
+
+    def get_criterion(self):
+        return self.criterion_name
 
     def __get(self, f, path):
         try:
@@ -134,7 +149,7 @@ class Zi_Device:
         return self.voltage
 
     def set_voltage(self, v):
-        self.voltage = int(v)
+        self.voltage = v
         outputs = {
             0: (10, 10, 10),
             1: (10, 10,  0),
@@ -142,7 +157,8 @@ class Zi_Device:
             3: ( 0, 10, 10),
             4: ( 0,  0, 10),
         }
-        for channel, output in enumerate(outputs.get(self.voltage, (0, 0, 0))):
+        voltage_abs_int = int(abs(self.voltage)+0.5)
+        for channel, output in enumerate(outputs.get(voltage_abs_int, (0, 0, 0))):
             self.setValue('/auxouts/{}/offset'.format(channel), float(output))
 
 
@@ -379,11 +395,25 @@ class Zi_Device:
 
 
     def get_lockin(self):
+        '''
+          TODO: Wait for the correct 'frame'
+          TODO: Measure the time:
+            Between get_lockin()
+            a) Clear buffer
+            b) Between start get_lockin() und Loopback
+            c) Between Loopback and the first lock-in
+            d) Between last lock-in and poll
+        '''
         # Trash all incoming data
+        timeA = time.time()
+
         while True:
             sample = self.poll(duration_s=0.001)
             if sample is None:
                 break
+
+        timeB = time.time()
+        statistics_time_add(timeB-timeA, 'a) Clear buffer')
 
         # Set for Loopback-Reply
         self.toggle_loopback_output()
@@ -396,18 +426,25 @@ class Zi_Device:
                 break
             logger.debug('waiting for loopback-reply')
 
+        timeC = time.time()
+        statistics_time_add(timeC-timeB, 'b) Between start get_lockin() und Loopback')
+
+        timeD = time.time()
+        statistics_time_add(timeD-timeC, 'c) Between Loopback and the first lock-in')
+
+        obj_criterion = self.criterion_class()
+
         # Wait for First Lock-In sample
         # Wait for criterion to be satisfied
-        criterion = 0
         for timestamp, x, y in self.iter_poll_lockin():
-            criterion  += 1
-            if criterion >= 4:
-                x, y, r, theta = x, y, 0.0, 0.0
-                return x, y, r, theta
+            obj_criterion.append_values(timestamp, x, y)
+            if obj_criterion.satisfied():
+                return obj_criterion
+
 
 if __name__ == '__main__':
-    dev_name = 'dev4078'
     dev_name = 'dev3116'
+    dev_name = 'dev4078'
 
     if False:
         dev = Zi_Device(dev_name)
@@ -421,6 +458,8 @@ if __name__ == '__main__':
         dev = Zi_Device(dev_name)
         dev.init_mfli_lock_in()
         while True:
-          x, y, r, theta = dev.get_lockin()
-          logger.info('get_lockin() returned {} {} {} {}'.format(x, y, r, theta))
+            # x, y, r, theta = dev.get_lockin()
+            obj_criterion = dev.get_lockin()
+            logger.info('get_lockin() returned {c.x_V} {c.y_V} {c.r_V} {c.theta_rad}'.format(c=obj_criterion))
+            break
         dev.disconnect()

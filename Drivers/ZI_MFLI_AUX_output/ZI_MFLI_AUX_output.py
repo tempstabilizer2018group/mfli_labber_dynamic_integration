@@ -7,6 +7,9 @@ import InstrumentDriver
 
 __version__  = '0.9'
 
+libs_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'ZI_MFLI_Lockin'))
+assert os.path.exists(libs_directory), 'Directory does not exist: {}'.format(libs_directory)
+sys.path.append(libs_directory)
 
 import ZI_MFLI_lib
 

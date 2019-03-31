@@ -9,12 +9,12 @@ __version__  = '0.9'
 
 
 import ZI_MFLI_lib
+import criterion
 
 class Driver(InstrumentDriver.InstrumentWorker):
     """ This class wraps the ziPython API"""
     def performOpen(self, options={}):
         self.x, self.y, self.r, self.theta = 0.0, 0.0, 0.0, 0.0
-
 
         self.log("A: " + self.comCfg.address, level=30)
 
@@ -27,15 +27,29 @@ class Driver(InstrumentDriver.InstrumentWorker):
         self.ziDevice.disconnect()
 
     def performSetValue(self, quant, value, sweepRate=0.0, options={}):
+        if quant.name in ['criterion',]:
+            self.ziDevice.set_criterion(value)
+            return self.ziDevice.get_criterion()
+        if quant.name in ['run',]:
+            self.obj_criterion = self.ziDevice.get_lockin()
+            return self.obj_criterion.quality
         return 0.0
 
     def performGetValue(self, quant, options={}):
+        if quant.name in ['criterion',]:
+            return self.ziDevice.get_criterion()
+        if quant.name in ['run',]:
+            self.obj_criterion = self.ziDevice.get_lockin()
+            return self.obj_criterion.quality
         if quant.name in ['X',]:
-            self.x, self.y, self.r, self.theta = self.ziDevice.get_lockin()
-            return self.x
+            assert self.obj_criterion is not None
+            return self.obj_criterion.x_V
         if quant.name in ['Y',]:
-            return self.y
+            assert self.obj_criterion is not None
+            return self.obj_criterion.y_V
         if quant.name in ['R',]:
-            return self.r
+            assert self.obj_criterion is not None
+            return self.obj_criterion.r_V
         if quant.name in ['theta',]:
-            return self.theta
+            assert self.obj_criterion is not None
+            return self.obj_criterion.theta_rad
