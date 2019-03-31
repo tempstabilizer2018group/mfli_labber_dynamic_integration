@@ -83,9 +83,18 @@ class Zi_Device:
             _devtype = self.getByte('/features/devtype')
         except Exception as e:
             raise CommunicationError("Device " + self.dev + " not found: " + str(e))
+        self.clockbase_s = self.getInt('/clockbase')
+        self.clockbase_ms = self.clockbase_s//1000
+        logger.debug('self.clockbase_s: %d' % self.clockbase_s)
+        logger.debug('self.clockbase_ms: %d' % self.clockbase_ms)
 
     def disconnect(self):
         self.daq.disconnect()
+
+    def get_time_diff_ms(self, timestamp_before, timestamp_after):
+        assert timestamp_after >= timestamp_before
+        diff = timestamp_after - timestamp_before
+        return diff/self.clockbase_ms
 
     def set_criterion(self, criterion_name):
         if criterion_name == '':
@@ -107,6 +116,9 @@ class Zi_Device:
 
     def getByte(self, path):
         return self.__get(self.daq.getByte, path)
+
+    def getInt(self, path):
+        return self.__get(self.daq.getInt, path)
 
     def __set(self, f, fullpath, v):
         try:
@@ -151,11 +163,14 @@ class Zi_Device:
     def set_voltage(self, v):
         self.voltage = v
         outputs = {
+            # channel
+            #    1   2   3
+            #  10M, 2M, 1M
             0: (10, 10, 10),
-            1: (10, 10,  0),
-            2: (10,  0,  0),
-            3: ( 0, 10, 10),
-            4: ( 0,  0, 10),
+            1: ( 0, 10, 10),
+            2: ( 0,  0, 10),
+            3: (10, 10,  0),
+            4: (10,  0,  0),
         }
         voltage_abs_int = int(abs(self.voltage)+0.5)
         for channel, output in enumerate(outputs.get(voltage_abs_int, (0, 0, 0))):
@@ -174,11 +189,23 @@ class Zi_Device:
         self._loopback_value_avg_V = (self._loopback_value_true_V-self._loopback_value_false_V)/2.0
 
         self.daq.unsubscribe('/{}/*'.format(self.dev))
+
         self.setValue('/demods/*/enable', 0)
+        self.setValue('/demods/*/adcselect', 0)
+        self.setValue('/demods/*/bypass', 0)
+        self.setValue('/demods/*/oscselect', 0)
+        self.setValue('/demods/*/order', 0)
+        self.setValue('/demods/*/sinc', 0)
+        self.setValue('/demods/*/timeconstant', 1.0/10000.0)
+        self.setValue('/demods/*/rate', 104.6)
+
         self.setValue('/oscs/*/freq', 1000.0)
         self.setValue('/sigouts/*/on', 0)
         self.setValue('/sigouts/*/amplitudes/*', 0.0)
         self.setValue('/sigins/*/on', 0)
+        self.setValue('/sigouts/*/enables/0', 0)
+
+        self.daq.sync()
 
         # Set
         self.setValue('/sigins/0/scaling', 1.0)
@@ -187,16 +214,18 @@ class Zi_Device:
         self.setValue('/sigins/0/imp50', 0)
         self.setValue('/sigins/0/ac', 0)
         self.setValue('/sigins/0/on', 1)
+        # self.setValue('/sigins/0/range', 3.0)
         self.setValue('/sigins/0/range', 0.001)
 
         self.setValue('/sigouts/0/amplitudes/0', 1.414031982421875)
-        self.setValue('/sigouts/0/on', 1)
         self.setValue('/sigouts/0/autorange', 0)
         self.setValue('/sigouts/0/imp50', 0)
         self.setValue('/sigouts/0/offset', 0)
         self.setValue('/sigouts/0/diff', 0)
         self.setValue('/sigouts/0/add', 0)
         self.setValue('/sigouts/0/range', 10.0)
+        self.setValue('/sigouts/0/on', 1)
+        self.setValue('/sigouts/0/enables/0', 1)
 
         self.setValue('/oscs/0/freq', 33.0)
 
@@ -220,11 +249,9 @@ class Zi_Device:
 
         # Start
         self.toggle_loopback_output()
-        time.sleep(1.0)
         self._subscribe_path_lockin = '/{}/demods/0/sample'.format(self.dev)
         self._subscribe_path_auxin0_0 = '/{}/auxins/0/values/0'.format(self.dev)
         subscribe_list = [self._subscribe_path_lockin, self._subscribe_path_auxin0_0]
-        # subscribe_list = [self._subscribe_path_auxin0_0]
         self.daq.subscribe(subscribe_list)
 
     def poll(self, duration_s=0.5):
@@ -241,106 +268,24 @@ class Zi_Device:
         return data
 
         '''
-        {   '/dev3116/auxins/0/values/1': {   'timestamp': array([1351595804502], dtype=uint64),
-                                            'value': array([5.84246397])},
-            '/dev3116/demods/0/sample': {   'auxin0': array([9.98732167, 9.98996556, 9.98732167, 9.98831313, 9.98930459,
-            9.98996556, 9.98864361, 9.98831313]),
-                                            'auxin1': array([5.84811979, 5.02769293, 5.84080049, 5.84346206, 5.84446014,
-            5.84512553, 5.84545823, 5.84712171]),
-                                            'dio': array([0, 0, 0, 0, 0, 0, 0, 0], dtype=uint32),
-                                            'frequency': array([32.99999996, 32.99999996, 32.99999996, 32.99999996, 32.99999996,
-            32.99999996, 32.99999996, 32.99999996]),
-                                            'phase': array([3.39930143, 5.38101286, 1.07944311, 3.06115454, 5.04277009,
-            0.74129622, 2.72291177, 4.7046232 ]),
-                                            'time': {   'blockloss': False,
-                                                        'dataloss': False,
-                                                        'invalidtimestamp': False,
-                                                        'mindelta': 0,
-                                                        'ratechange': False,
-                                                        'trigger': 0},
-                                            'timestamp': array([1351593544855, 1351594118295, 1351594691735, 1351595265175,
-            1351595838615, 1351596412055, 1351596985495, 1351597558935],
-            dtype=uint64),
-                                            'trigger': array([ 10, 512, 256, 778, 512, 256, 778,   0], dtype=uint32),
-                                            'x': array([-2.60897676e-05, -2.60897676e-05, -2.60897676e-05, -2.60897676e-05,
-            -2.99412824e-05, -2.99412824e-05, -2.99412824e-05, -3.12901257e-05]),
-                                            'y': array([-2.32184302e-06, -2.32184302e-06, -2.32184302e-06, -2.32184302e-06,
-                4.05271902e-06,  4.05271902e-06,  4.05271902e-06,  9.37900449e-06])}}
+{   '/dev4078/auxins/0/values/0': {   'timestamp': array([1913415129435], dtype=uint64),
+                                      'value': array([-0.00229972])},
+    '/dev4078/demods/0/sample': {   'auxin0': array([-0.00229972, -0.00065706, -0.00032853, -0.00197119,  0.00032853,  0.00032853]),
+                                    'auxin1': array([ 0.00032922, -0.00098766, -0.00098766,  0.00098766,  0.        ,  0.00032922]),
+                                    'dio': array([0, 0, 0, 0, 0, 0], dtype=uint32),
+                                    'frequency': array([32.99999996, 32.99999996, 32.99999996, 32.99999996, 32.99999996,  32.99999996]),
+                                    'phase': array([4.95130649, 0.64973674, 2.63144817, 4.61306372, 0.31158985,  2.2932054 ]),
+                                    'time': {   'blockloss': False,
+                                                'dataloss': False,
+                                                'invalidtimestamp': False,
+                                                'mindelta': 0,
+                                                'ratechange': False,
+                                                'trigger': 0},
+                                    'timestamp': array([1913412209688, 1913412783128, 1913413356568, 1913413930008, 1913414503448, 1913415076888], dtype=uint64),
+                                    'trigger': array([  0, 768, 768,   0, 768, 768], dtype=uint32),
+                                    'x': array([2.47236311e-09, 2.47236311e-09, 2.47236311e-09, 2.47236311e-09, 7.21072315e-09, 7.21072315e-09]),
+                                    'y': array([3.87694619e-07, 3.87694619e-07, 3.87694619e-07, 3.87694619e-07, 3.83416479e-07, 3.83416479e-07])}}
         '''
-
-        sample_list = data.get(subscribe_path, None)
-        if sample_list:
-            return sample_list
-        if False:
-            logger.debug('**** SAMPLE')
-            pp.pprint(sample_list)
-
-        '''
-        {   'dev3116': {   'demods': {   '0': {   'sample': {   'auxin0': array([9.98996556, 9.98996556, 9.98996556, 9.99029605]),
-                                                                'auxin1': array([4.52432478, 4.5233267 , 9.99716416, 9.99550068]),
-                                                                'dio': array([0, 0, 0, 0], dtype=uint32),
-                                                                'frequency': array([32.99999996, 32.99999996, 32.99999996, 32.99999996]),
-                                                                'phase': array([4.14970565, 6.13132121, 1.82984733, 3.81146289]),
-                                                                'time': {   'blockloss': False,
-                                                                            'dataloss': False,
-                                                                            'invalidtimestamp': False,
-                                                                            'mindelta': 0,
-                                                                            'ratechange': False,
-                                                                            'trigger': 0},
-                                                                'timestamp': array([523183197335, 523183770775, 523184344215, 523184917655], dtype=uint64),
-                                                                'trigger': array([  0, 522, 256, 512], dtype=uint32),
-                                                                'x': array([0.00081382, 0.00081382, 0.00081382, 0.00079068]),
-                                                                'y': array([7.68430508e-06, 7.68430508e-06, 7.68430508e-06, 6.27083050e-06])}}}}}
-        '''
-
-        '''
-        {   '/dev3116/demods/0/sample': {   'auxin0': array([9.98864361, 9.99095702, 9.99029605, 9.98963508]),
-                                            'auxin1': array([4.55260389, 4.55160581, 9.99317182, 9.99350451]),
-                                            'dio': array([0, 0, 0, 0], dtype=uint32),
-                                            'frequency': array([32.99999996, 32.99999996, 32.99999996, 32.99999996]),
-                                            'phase': array([4.01174326, 5.99335881, 1.69188494, 3.67350049]),
-                                            'time': {   'blockloss': False,
-                                                        'dataloss': False,
-                                                        'invalidtimestamp': False,
-                                                        'mindelta': 0,
-                                                        'ratechange': False,
-                                                        'trigger': 0},
-                                            'timestamp': array([529840262295, 529840835735, 529841409175, 529841982615], dtype=uint64),
-                                            'trigger': array([  0, 512, 266, 512], dtype=uint32),
-                                            'x': array([0.00081626, 0.00081626, 0.00081626, 0.00079526]),
-                                            'y': array([ 6.30869067e-07,  6.30869067e-07,  6.30869067e-07, -8.03117684e-07])}}
-        '''
-
-        '''
-        {   'auxin0': array([9.99360092, 9.99690579, 9.99624482, 9.99360092, 9.99260946,
-            9.99393141]),
-            'auxin1': array([3.49363443, 3.4663534 , 9.99782955, 3.47101114, 3.44971863,
-            3.43907238]),
-            'dio': array([0, 0, 0, 0, 0, 0], dtype=uint32),
-            'frequency': array([32.99999996, 32.99999996, 32.99999996, 32.99999996, 32.99999996,
-            32.99999996]),
-            'phase': array([5.5868539 , 1.28528415, 3.26699558, 5.24861114, 0.94713726,
-            2.92875282]),
-            'time': {   'blockloss': False,
-                        'dataloss': False,
-                        'invalidtimestamp': False,
-                        'mindelta': 0,
-                        'ratechange': False,
-                        'trigger': 0},
-            'timestamp': array([459849616535, 459850189975, 459850763415, 459851336855,
-            459851910295, 459852483735], dtype=uint64),
-            'trigger': array([  0, 266, 512,   0, 778, 256], dtype=uint32),
-            'x': array([-2.77537180e-05, -2.77537180e-05, -3.38719419e-05, -3.38719419e-05,
-            -3.38719419e-05, -3.38719419e-05]),
-            'y': array([-4.51401086e-06, -4.51401086e-06, -8.98523653e-06, -8.98523653e-06,
-            -8.98523653e-06, -8.98523653e-06])}
-        '''
-        list_timestamp = sample_list['timestamp']
-        list_x = sample_list['x']
-        list_y = sample_list['x']
-
-
-        return sample_list
 
     def toggle_loopback_output(self):
         self._loopback_flag = not self._loopback_flag
@@ -368,30 +313,67 @@ class Zi_Device:
             yield value
 
     def iter_poll_lockin(self):
-        timestamp_last = 0
+        counter_no_data = 0
+        counter_trash_loopback = 0
+        counter_same_x = 0
+        x_last = None
+        timestamp_start = None
         while True:
             data1 = self.poll(duration_s=0.01)
             if not data1:
                 # No data anymore
-                logger.debug('iter_poll_lockin: no data')
+                # logger.debug('iter_poll_lockin: no data')
+                counter_no_data += 1
                 continue
             data2 = data1.get(self._subscribe_path_lockin, None)
             if not data2:
                 # lock-in data: Trash
-                logger.debug('iter_poll_lockin: trash loopback')
+                # logger.debug('iter_poll_lockin: trash loopback')
+                counter_trash_loopback += 1
                 continue
 
             list_timestamp = data2['timestamp']
             list_x = data2['x']
-            list_y = data2['x']
+            list_y = data2['y']
             assert len(list_timestamp) == len(list_x)
             assert len(list_timestamp) == len(list_y)
             logger.debug('iter_poll_lockin: list_timeout: ' + str(list_timestamp))
             for timestamp, x, y in zip(list_timestamp, list_x, list_y):
-                if timestamp_last != timestamp:
-                    timestamp_last = timestamp
-                    logger.debug('iter_poll_lockin: timestamp, x, y: {} {} {}'.format(timestamp, x, y))
+                if x_last == None:
+                    # First time: special case: remember the x and now start for watching for changes of x
+                    x_last = x
+                    timestamp_start = timestamp
+                    continue
+                if x_last != x:
+                    x_last = x
+                    if timestamp_start is not None:
+                        logger.debug('iter_poll_lockin: delta timestamp: {}ms'.format(self.get_time_diff_ms(timestamp_start, timestamp)))
+                    logger.debug('iter_poll_lockin: counter_no_data, counter_trash_loopback, counter_same_x: {} {} {}'.format(counter_no_data, counter_trash_loopback, counter_same_x))
+                    logger.debug('iter_poll_lockin: timestamp, x, y: {} {:1.9f} {:1.9f}'.format(timestamp, x, y))
+
                     yield timestamp, x, y
+
+                    timestamp_start = timestamp
+                    counter_no_data = 0
+                    counter_trash_loopback = 0
+                    counter_same_x = 0
+                    continue
+
+                # TODO: Hack, constant
+                timeout_ms = 2*30
+                if self.get_time_diff_ms(timestamp_start, timestamp) > timeout_ms:
+                    # It may happen, that x is 0.0000, so 'x_last != x' will never be true.
+                    # We safe us from entering an endless loop
+                    logger.debug("iter_poll_lockin: x didn't change within %d ms!" % timeout_ms)
+                    yield timestamp, x, y
+
+                    timestamp_start = timestamp
+                    counter_no_data = 0
+                    counter_trash_loopback = 0
+                    counter_same_x = 0
+                    continue
+
+                counter_same_x += 1
 
 
     def get_lockin(self):
@@ -404,6 +386,11 @@ class Zi_Device:
             c) Between Loopback and the first lock-in
             d) Between last lock-in and poll
         '''
+        def watchdog():
+            time_elapsed = time.time() - timeA
+            if time_elapsed > 2.0:
+                raise Exception('Watchdog')
+
         # Trash all incoming data
         timeA = time.time()
 
@@ -424,7 +411,9 @@ class Zi_Device:
             if loopback_measured_flag == self._loopback_flag:
                 # We got the reply from the loopback-loop
                 break
+            watchdog()
             logger.debug('waiting for loopback-reply')
+        logger.debug('got loopback-reply')
 
         timeC = time.time()
         statistics_time_add(timeC-timeB, 'b) Between start get_lockin() und Loopback')
@@ -434,10 +423,19 @@ class Zi_Device:
 
         obj_criterion = self.criterion_class()
 
-        # Wait for First Lock-In sample
+        # Wait for First Lock-In sample: Trash it
+        for timestamp, x, y in self.iter_poll_lockin():
+            watchdog()
+            if False:
+                time_elapsed = time.time() - timeA
+                if time_elapsed > 1.0:
+                    raise Exception('%d %f %f' % (timestamp, x, y))
+            break
+
         # Wait for criterion to be satisfied
         for timestamp, x, y in self.iter_poll_lockin():
             obj_criterion.append_values(timestamp, x, y)
+            watchdog()
             if obj_criterion.satisfied():
                 return obj_criterion
 
@@ -460,6 +458,6 @@ if __name__ == '__main__':
         while True:
             # x, y, r, theta = dev.get_lockin()
             obj_criterion = dev.get_lockin()
-            logger.info('get_lockin() returned {c.x_V} {c.y_V} {c.r_V} {c.theta_rad}'.format(c=obj_criterion))
-            break
+            logger.info('get_lockin() returned {c.x_V:1.9f} {c.y_V:1.9f} {c.r_V:1.9f} {c.theta_rad:1.3f}'.format(c=obj_criterion))
+            # break
         dev.disconnect()

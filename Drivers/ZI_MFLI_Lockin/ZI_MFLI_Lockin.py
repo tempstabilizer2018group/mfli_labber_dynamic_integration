@@ -16,15 +16,19 @@ class Driver(InstrumentDriver.InstrumentWorker):
     def performOpen(self, options={}):
         self.x, self.y, self.r, self.theta = 0.0, 0.0, 0.0, 0.0
 
-        self.log("A: " + self.comCfg.address, level=30)
+        self.log("%s: before init" % __file__, level=30)
 
         self.ziDevice = ZI_MFLI_lib.Zi_Device(self.comCfg.address)
 
         self.ziDevice.init_mfli_lock_in()
 
+        self.log("%s: after init" % __file__, level=30)
+
     def performClose(self, bError=False, options={}):
         """Perform the close instrument connection operation"""
+        self.log("%s: performClose: before disconnect" % __file__, level=30)
         self.ziDevice.disconnect()
+        self.log("%s: performClose: after disconnect" % __file__, level=30)
 
     def performSetValue(self, quant, value, sweepRate=0.0, options={}):
         if quant.name in ['criterion',]:
@@ -33,7 +37,6 @@ class Driver(InstrumentDriver.InstrumentWorker):
         if quant.name in ['run',]:
             self.obj_criterion = self.ziDevice.get_lockin()
             return self.obj_criterion.quality
-        return 0.0
 
     def performGetValue(self, quant, options={}):
         if quant.name in ['criterion',]:

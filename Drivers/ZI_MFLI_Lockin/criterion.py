@@ -26,6 +26,7 @@ class CriterionBase:
         self.values_X.append_value(x_V)
         self.values_Y.append_value(y_V)
 
+
 class CriterionSimple(CriterionBase):
     def satisfied(self):
         '''
