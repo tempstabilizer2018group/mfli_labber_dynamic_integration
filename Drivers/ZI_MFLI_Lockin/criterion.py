@@ -1,3 +1,4 @@
+import math
 
 
 class Values:
@@ -16,6 +17,17 @@ class Values:
             return self.list_values_V[1]
         return self.list_values_V[len(self.sorted_values_V)//2]
 
+
+class CriterionSkip:
+    def __init__(self):
+        self.skip_count = None
+        self.x_V = math.nan
+        self.y_V = math.nan
+        self.r_V = math.nan
+        self.theta_rad = math.nan
+        self.quality = math.nan
+
+criterion_skip = CriterionSkip()
 
 class CriterionBase:
     def __init__(self):
@@ -42,4 +54,10 @@ class CriterionSimple(CriterionBase):
         self.r_V = 47.11
         self.theta_rad = 0.12
         self.quality = '47.11'
+        if self.x_V < 1e-6:
+            self.skip_count = 1
+        elif self.x_V < 0.5e-6:
+            self.skip_count = 2
+        else:
+            self.skip_count = 0
         return True

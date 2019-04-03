@@ -34,15 +34,13 @@ class Driver(InstrumentDriver.InstrumentWorker):
         if quant.name in ['criterion',]:
             self.ziDevice.set_criterion(value)
             return self.ziDevice.get_criterion()
-        if quant.name in ['run',]:
-            self.obj_criterion = self.ziDevice.get_lockin()
-            return self.obj_criterion.quality
 
     def performGetValue(self, quant, options={}):
         if quant.name in ['criterion',]:
             return self.ziDevice.get_criterion()
         if quant.name in ['run',]:
             self.obj_criterion = self.ziDevice.get_lockin()
+            assert self.obj_criterion is not None
             return self.obj_criterion.quality
         if quant.name in ['X',]:
             assert self.obj_criterion is not None

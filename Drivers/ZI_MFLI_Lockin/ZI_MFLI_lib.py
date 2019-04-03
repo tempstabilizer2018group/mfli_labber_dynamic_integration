@@ -174,6 +174,7 @@ class Zi_Device:
 
     def init_mfli_lock_in(self):
         # Reset
+        self._skip_count = 0
         self._loopback_flag = False
         self._loopback_value_false_V = 0.0
         self._loopback_value_true_V = 10.0
@@ -333,7 +334,6 @@ class Zi_Device:
 
                     timestamp_start = timestamp
                     counter_no_data = 0
-                    counter_trash_loopback = 0
                     counter_same_x = 0
                     continue
 
@@ -364,6 +364,10 @@ class Zi_Device:
             c) Between Loopback and the first lock-in
             d) Between last lock-in and poll
         '''
+        if self._skip_count > 0:
+            self._skip_count -= 1
+            return criterion.criterion_skip
+
         def watchdog():
             time_elapsed = time.time() - timeA
             if time_elapsed > 2.0:
@@ -415,6 +419,8 @@ class Zi_Device:
             obj_criterion.append_values(timestamp, x, y)
             watchdog()
             if obj_criterion.satisfied():
+                if obj_criterion.skip_count > 0:
+                    self._skip_count = obj_criterion.skip_count
                 return obj_criterion
 
 
