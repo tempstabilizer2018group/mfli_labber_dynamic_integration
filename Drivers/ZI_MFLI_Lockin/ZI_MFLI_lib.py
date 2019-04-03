@@ -173,8 +173,16 @@ class Zi_Device:
     #
 
     def init_mfli_lock_in(self):
+        # my_directory = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+        # filename = os.path.join(my_directory, 'log_mfli.txt')
+        filename = __file__.replace('.py', '_log.txt')
+        fh = logging.FileHandler(filename)
+        fh.setLevel(logging.DEBUG)
+        logger.addHandler(fh)
+
         # Reset
         self._skip_count = 0
+        self._last_criterion = None
         self._loopback_flag = False
         self._loopback_value_false_V = 0.0
         self._loopback_value_true_V = 10.0
@@ -403,7 +411,7 @@ class Zi_Device:
         timeD = time.time()
         statistics_time_add(timeD-timeC, 'c) Between Loopback and the first lock-in')
 
-        obj_criterion = self.criterion_class()
+        obj_criterion = self.criterion_class(self._last_criterion)
 
         # Wait for First Lock-In sample: Trash it
         for timestamp, x, y in self.iter_poll_lockin():
@@ -421,6 +429,7 @@ class Zi_Device:
             if obj_criterion.satisfied():
                 if obj_criterion.skip_count > 0:
                     self._skip_count = obj_criterion.skip_count
+                self._last_criterion = obj_criterion
                 return obj_criterion
 
 
