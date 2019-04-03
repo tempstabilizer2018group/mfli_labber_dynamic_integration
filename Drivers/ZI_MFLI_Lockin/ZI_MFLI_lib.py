@@ -46,10 +46,7 @@ logger.setLevel(logging.DEBUG)
 
 import zhinst
 import zhinst.ziPython
-# import zhinst.ziPython
-# import zhinst.ziPython as zi
-# import zhinst
-# import zhinst.utils
+
 import criterion
 
 def statistics_time_add(*args):
@@ -126,12 +123,6 @@ class Zi_Device:
         except Exception as e:
             raise CommunicationError("Failed to " + f.__name__ + "(" + fullpath + "): " + str(e))
 
-    # def setInt(self, path, v):
-    #     self.__set(self.daq.setInt, path, v)
-
-    # def setDouble(self, path, v):
-    #     self.__set(self.daq.setDouble, path, v)
-    
     def setValue(self, path, v):
         fullpath = '/%s%s' % (self.dev, path)
         if isinstance(v, int):
@@ -249,10 +240,8 @@ class Zi_Device:
 
         # Start
         self.toggle_loopback_output()
-        self._subscribe_path_lockin = '/{}/demods/0/sample'.format(self.dev)
-        self._subscribe_path_auxin0_0 = '/{}/auxins/0/values/0'.format(self.dev)
-        subscribe_list = [self._subscribe_path_lockin, self._subscribe_path_auxin0_0]
-        self.daq.subscribe(subscribe_list)
+        self._subscribe_path = '/{}/demods/0/sample'.format(self.dev)
+        self.daq.subscribe(self._subscribe_path)
 
     def poll(self, duration_s=0.5):
         timeout_ms = 5 
@@ -268,9 +257,7 @@ class Zi_Device:
         return data
 
         '''
-{   '/dev4078/auxins/0/values/0': {   'timestamp': array([1913415129435], dtype=uint64),
-                                      'value': array([-0.00229972])},
-    '/dev4078/demods/0/sample': {   'auxin0': array([-0.00229972, -0.00065706, -0.00032853, -0.00197119,  0.00032853,  0.00032853]),
+{   '/dev4078/demods/0/sample': {   'auxin0': array([-0.00229972, -0.00065706, -0.00032853, -0.00197119,  0.00032853,  0.00032853]),
                                     'auxin1': array([ 0.00032922, -0.00098766, -0.00098766,  0.00098766,  0.        ,  0.00032922]),
                                     'dio': array([0, 0, 0, 0, 0, 0], dtype=uint32),
                                     'frequency': array([32.99999996, 32.99999996, 32.99999996, 32.99999996, 32.99999996,  32.99999996]),
@@ -295,17 +282,14 @@ class Zi_Device:
     def iter_poll_loopback(self):
         while True:
             data1 = self.poll(duration_s=0.1)
+            data2 = data1[self._subscribe_path]
             if not data1:
                 # No data anymore
                 logger.debug('iter_poll_loopback: no data')
                 continue
-            data2 = data1.get(self._subscribe_path_auxin0_0, None)
-            if not data2:
-                # lock-in data: Trash
-                logger.debug('iter_poll_loopback: trash lock-in')
-                continue
+
             list_timestamp = data2['timestamp']
-            list_value = data2['value']
+            list_value = data2['auxin0']
             logger.debug('iter_poll_loopback: list_value: ' + str(list_value))
             assert len(list_timestamp) == len(list_value)
             value = list_value[-1]
@@ -314,7 +298,6 @@ class Zi_Device:
 
     def iter_poll_lockin(self):
         counter_no_data = 0
-        counter_trash_loopback = 0
         counter_same_x = 0
         x_last = None
         timestamp_start = None
@@ -325,12 +308,7 @@ class Zi_Device:
                 # logger.debug('iter_poll_lockin: no data')
                 counter_no_data += 1
                 continue
-            data2 = data1.get(self._subscribe_path_lockin, None)
-            if not data2:
-                # lock-in data: Trash
-                # logger.debug('iter_poll_lockin: trash loopback')
-                counter_trash_loopback += 1
-                continue
+            data2 = data1[self._subscribe_path]
 
             list_timestamp = data2['timestamp']
             list_x = data2['x']
@@ -348,7 +326,7 @@ class Zi_Device:
                     x_last = x
                     if timestamp_start is not None:
                         logger.debug('iter_poll_lockin: delta timestamp: {}ms'.format(self.get_time_diff_ms(timestamp_start, timestamp)))
-                    logger.debug('iter_poll_lockin: counter_no_data, counter_trash_loopback, counter_same_x: {} {} {}'.format(counter_no_data, counter_trash_loopback, counter_same_x))
+                    logger.debug('iter_poll_lockin: counter_no_data, counter_same_x: {} {}'.format(counter_no_data, counter_same_x))
                     logger.debug('iter_poll_lockin: timestamp, x, y: {} {:1.9f} {:1.9f}'.format(timestamp, x, y))
 
                     yield timestamp, x, y
