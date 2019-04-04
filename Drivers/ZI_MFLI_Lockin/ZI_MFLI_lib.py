@@ -124,6 +124,9 @@ class Zi_Device:
     def __init__(self, dev):
         """Perform the operation of opening the instrument connection"""
         assert dev != ''
+        self.measure_loopback = True
+        self.skip_first_measurement = True
+        self.start_using_last_measurement = True
         self.time_last_import = time.time()
         self.statistics = Statistics()
         self.voltage = 0.0
@@ -261,7 +264,7 @@ class Zi_Device:
         self.setValue('/demods/*/order', 0)
         self.setValue('/demods/*/sinc', 0)
         self.setValue('/demods/*/timeconstant', 1.0/10000.0)
-        self.setValue('/demods/*/rate', 104.6)
+        self.setValue('/demods/*/rate', 837.1)  # 104.6
 
         self.setValue('/oscs/*/freq', 1000.0)
         self.setValue('/sigouts/*/on', 0)
@@ -301,7 +304,7 @@ class Zi_Device:
         self.setValue('/demods/0/trigger', 0)
         self.setValue('/demods/0/phaseshift', 0.0)
         self.setValue('/demods/0/harmonic', 1.0)
-        self.setValue('/demods/0/rate', 104.6)
+        self.setValue('/demods/0/rate', 104.6) # 837.1
         self.setValue('/demods/0/timeconstant', 0.081133224070072174)
 
         self.setValue('/demods/0/enable', 1)
@@ -315,9 +318,11 @@ class Zi_Device:
         self.toggle_loopback_output()
         self._subscribe_path = '/{}/demods/0/sample'.format(self.dev)
         self.daq.subscribe(self._subscribe_path)
+        # Wait till toggle value sattles
+        time.sleep(0.1)
 
     def poll(self, duration_s=0.5):
-        timeout_ms = 5 
+        timeout_ms = 1
         flags = 0
         return_flat_dict = True
         data = self.daq.poll(duration_s, timeout_ms, flags, return_flat_dict)
@@ -354,7 +359,7 @@ class Zi_Device:
 
     def iter_poll(self):
         while True:
-            data1 = self.poll(duration_s=0.01)
+            data1 = self.poll(duration_s=0.005)
             if not data1:
                 # No data anymore
                 logger.debug('iter_poll: no data')
@@ -373,15 +378,15 @@ class Zi_Device:
             for values in zip(list_timestamp, list_x, list_y, list_auxin0):
                 yield values
 
-    def iter_poll_loopback(self):
-        for _timestamp, _x, _y, auxin0 in self.iter_poll():
+    def iter_poll_loopback(self, _iter_poll):
+        for _timestamp, _x, _y, auxin0 in _iter_poll:
             yield auxin0
 
-    def iter_poll_lockin(self):
+    def iter_poll_lockin(self, _iter_poll):
         counter_same_x = 0
         x_last = None
         timestamp_start = None
-        for timestamp, x, y, _auxin0 in self.iter_poll():
+        for timestamp, x, y, _auxin0 in _iter_poll:
             if x_last == None:
                 # First time: special case: remember the x and now start for watching for changes of x
                 x_last = x
@@ -414,6 +419,17 @@ class Zi_Device:
 
             counter_same_x += 1
 
+    def trash_input(self):
+        # Trash all incoming data
+        self.statistics.add_time('Trash begin')
+        trash_counter = 0
+        while True:
+            trash_counter += 1
+            sample = self.poll(duration_s=0.0001)
+            if sample is None:
+                break
+        self.statistics.add_counter('trash_counter', trash_counter)
+        self.statistics.add_time('Trash end')
 
     def get_lockin(self):
         '''
@@ -438,31 +454,26 @@ class Zi_Device:
         self.statistics.start_line(timeA)
 
         # Trash all incoming data
-        self.statistics.add_time('Trash begin')
-        trash_counter = 0
-        while True:
-            trash_counter += 1
-            sample = self.poll(duration_s=0.0001)
-            if sample is None:
-                break
+        self.trash_input()
 
-        self.statistics.add_counter('trash_counter', trash_counter)
-        self.statistics.add_time('Trash end')
+        iter_poll = self.iter_poll()
 
-        # Set for Loopback-Reply
-        self.toggle_loopback_output()
+        if self.measure_loopback:
+            # Set for Loopback-Reply
+            self.toggle_loopback_output()
 
-        # Wait for Loopback-Reply
-        self.statistics.add_time('Loopback begin')
-        for loopback_measured_V in self.iter_poll_loopback():
-            loopback_measured_flag = loopback_measured_V > self._loopback_value_avg_V
-            if loopback_measured_flag == self._loopback_flag:
-                # We got the reply from the loopback-loop
-                break
-            watchdog()
-            logger.debug('waiting for loopback-reply')
-        logger.debug('got loopback-reply')
-        self.statistics.add_time('Loopback end')
+            # Wait for Loopback-Reply
+            self.statistics.add_time('Loopback begin')
+            for loopback_measured_V in self.iter_poll_loopback(iter_poll):
+                loopback_measured_flag = loopback_measured_V > self._loopback_value_avg_V
+                if loopback_measured_flag == self._loopback_flag:
+                    # We got the reply from the loopback-loop
+                    break
+                watchdog()
+                logger.debug('waiting for loopback-reply')
+            logger.debug('got loopback-reply')
+            self.statistics.add_time('Loopback end')
+
 
         if timeA > self.time_last_import + 5.0:
             self.time_last_import = timeA
@@ -472,24 +483,33 @@ class Zi_Device:
 
         obj_criterion = self.criterion_class(self._last_criterion)
 
-        # Wait for First Lock-In sample: Trash it
-        self.statistics.add_time('Wait First begin')
-        counter_samples = 0
-        for timestamp, x, y in self.iter_poll_lockin():
-            counter_samples += 1
-            watchdog()
-            if False:
-                time_elapsed = time.time() - timeA
-                if time_elapsed > 1.0:
-                    raise Exception('%d %f %f' % (timestamp, x, y))
-            break
-        self.statistics.add_counter('Wait First Samples', counter_samples)
-        self.statistics.add_time('Wait First end')
+
+        if not self.skip_first_measurement:
+            # Wait for First Lock-In sample: Trash it
+            self.statistics.add_time('Wait First begin')
+            counter_samples = 0
+            for timestamp, x, y in self.iter_poll_lockin(iter_poll):
+                counter_samples += 1
+                watchdog()
+                if False:
+                    time_elapsed = time.time() - timeA
+                    if time_elapsed > 1.0:
+                        raise Exception('%d %f %f' % (timestamp, x, y))
+                break
+            self.statistics.add_counter('Wait First Samples', counter_samples)
+            self.statistics.add_time('Wait First end')
+
+        if self.start_using_last_measurement:
+            self.statistics.add_time('Wait Last Sample begin')
+            for timestamp, x, y, _auxin0 in iter_poll:
+                obj_criterion.append_values(timestamp, x, y)
+                break
+            self.statistics.add_time('Wait Last Sample end')
 
         # Wait for criterion to be satisfied
         self.statistics.add_time('Wait Sample begin')
         counter_samples = 0
-        for timestamp, x, y in self.iter_poll_lockin():
+        for timestamp, x, y in self.iter_poll_lockin(iter_poll):
             counter_samples += 1
             obj_criterion.append_values(timestamp, x, y)
             watchdog()
@@ -521,6 +541,7 @@ if __name__ == '__main__':
         dev = Zi_Device(dev_name)
         dev.init_mfli_lock_in()
         dev.set_criterion('CriterionOne')
+        dev.measure_loopback = False
         for i in range(10):
             # x, y, r, theta = dev.get_lockin()
             obj_criterion = dev.get_lockin()
