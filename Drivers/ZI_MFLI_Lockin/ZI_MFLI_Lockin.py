@@ -21,6 +21,7 @@ class Driver(InstrumentDriver.InstrumentWorker):
         self.ziDevice = ZI_MFLI_lib.Zi_Device(self.comCfg.address)
 
         self.ziDevice.init_mfli_lock_in()
+        self.ziDevice.start_logging()
 
         self.log("%s: after init" % __file__, level=30)
 
@@ -32,6 +33,14 @@ class Driver(InstrumentDriver.InstrumentWorker):
         self.log("%s: performClose: after disconnect" % __file__, level=30)
 
     def performSetValue(self, quant, value, sweepRate=0.0, options={}):
+        if quant.name in ['outputform',]:
+            self.ziDevice.output_form = value
+            return self.ziDevice.output_form
+
+        if quant.name in ['Voltage',]:
+            self.ziDevice.set_voltage(value)
+            return self.ziDevice.get_voltage()
+
         if quant.name in ['criterion',]:
             self.ziDevice.set_criterion(value)
             return self.ziDevice.get_criterion()
@@ -42,7 +51,7 @@ class Driver(InstrumentDriver.InstrumentWorker):
 
         if quant.name in ['logging_save_file',]:
             self.ziDevice.stop_logging()
-            self.ziDevice.stop_logging()
+            self.ziDevice.start_logging()
 
     def _performGetValue(self, quant, options):
         assert self.obj_criterion is not None
@@ -83,6 +92,12 @@ class Driver(InstrumentDriver.InstrumentWorker):
                 15:26:37,501:  %s: performGetValue: quant.name Y quant.isFirstCall False quant.isFinalCall True
         '''
         # self.log("%s: performGetValue: quant.name {} quant.isFirstCall {} quant.isFinalCall {}".format(quant.name, self.isFirstCall(options), self.isFinalCall(options)), level=30)
+
+        if quant.name in ['outputform',]:
+            return self.ziDevice.output_form
+
+        if quant.name in ['Voltage',]:
+            return self.ziDevice.get_voltage()
 
         if quant.name in ['criterion',]:
             return self.ziDevice.get_criterion()

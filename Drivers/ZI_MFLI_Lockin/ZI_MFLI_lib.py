@@ -362,6 +362,8 @@ class Zi_Device:
         # Wait till toggle value sattles
         time.sleep(0.1)
 
+        self.init_mfli_aux_output()
+
     def _poll(self, duration_s=0.5):
         timeout_ms = 1
         flags = 0
