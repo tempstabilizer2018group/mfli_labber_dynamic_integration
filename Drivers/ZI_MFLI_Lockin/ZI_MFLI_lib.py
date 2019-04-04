@@ -49,8 +49,56 @@ import zhinst.ziPython
 
 import criterion
 
-def statistics_time_add(*args):
-    pass
+class Statistics:
+    def __init__(self):
+        self.time_start_s = None
+        self.first_line = True
+        self.dict_values = {}
+        self.dict_header = {}
+        self.list_signal_name = []
+        self.list_unit_name = []
+
+        filename = __file__.replace('.py', '_log.csv')
+        self.f = open(filename, 'w')
+
+    def end_line(self):
+        if self.first_line:
+            # Dump Header
+            self.first_line = False
+            self.dump_line(self.list_signal_name)
+            self.dump_line(self.list_unit_name)
+
+        # Dump line
+        l = []
+        for signal_name in self.list_signal_name:
+            l.append(self.dict_values.get(signal_name, '?'))
+        self.dump_line(l)
+
+        self.dict_values = {}
+
+    def add(self, signal_name, unit_name, value):
+        if self.first_line:
+            self.list_signal_name.append(signal_name)
+            self.list_unit_name.append(f'[{unit_name}]')
+
+        if self.dict_values.get(signal_name, False) is not False:
+            raise Exception(f'Signal {signal_name} used twice!')
+        self.dict_values[signal_name] = str(value)
+    
+    def add_time(self, signal_name):
+        if self.time_start_s is None:
+            self.time_start_s = time.time()
+        time_s = time.time() - self.time_start_s
+        self.add(signal_name, 's', time_s)
+
+    def add_counter(self, signal_name, counter):
+        self.add(signal_name, '1', counter)
+
+    def dump_line(self, list_line):
+        self.f.write('\t'.join(list_line))
+        self.f.write('\n')
+        self.f.flush()
+
 
 try:
     import InstrumentDriver
@@ -64,6 +112,7 @@ class Zi_Device:
     def __init__(self, dev):
         """Perform the operation of opening the instrument connection"""
         assert dev != ''
+        self.statistics = Statistics()
         self.voltage = 0.0
         self.dev = dev
         self.set_criterion(criterion.CriterionSimple.__name__)
@@ -381,21 +430,25 @@ class Zi_Device:
             if time_elapsed > 2.0:
                 raise Exception('Watchdog')
 
-        # Trash all incoming data
         timeA = time.time()
 
+        # Trash all incoming data
+        self.statistics.add_time('Trash begin')
+        trash_counter = 0
         while True:
+            trash_counter += 1
             sample = self.poll(duration_s=0.001)
             if sample is None:
                 break
 
-        timeB = time.time()
-        statistics_time_add(timeB-timeA, 'a) Clear buffer')
+        self.statistics.add_counter('trash_counter', trash_counter)
+        self.statistics.add_time('Trash end')
 
         # Set for Loopback-Reply
         self.toggle_loopback_output()
 
         # Wait for Loopback-Reply
+        self.statistics.add_time('Loopback begin')
         for loopback_measured_V in self.iter_poll_loopback():
             loopback_measured_flag = loopback_measured_V > self._loopback_value_avg_V
             if loopback_measured_flag == self._loopback_flag:
@@ -404,33 +457,40 @@ class Zi_Device:
             watchdog()
             logger.debug('waiting for loopback-reply')
         logger.debug('got loopback-reply')
-
-        timeC = time.time()
-        statistics_time_add(timeC-timeB, 'b) Between start get_lockin() und Loopback')
-
-        timeD = time.time()
-        statistics_time_add(timeD-timeC, 'c) Between Loopback and the first lock-in')
+        self.statistics.add_time('Loopback end')
 
         obj_criterion = self.criterion_class(self._last_criterion)
 
         # Wait for First Lock-In sample: Trash it
+        self.statistics.add_time('Wait First begin')
+        counter_samples = 0
         for timestamp, x, y in self.iter_poll_lockin():
+            counter_samples += 1
             watchdog()
             if False:
                 time_elapsed = time.time() - timeA
                 if time_elapsed > 1.0:
                     raise Exception('%d %f %f' % (timestamp, x, y))
             break
+        self.statistics.add_counter('Wait First Samples', counter_samples)
+        self.statistics.add_time('Wait First end')
 
         # Wait for criterion to be satisfied
+        self.statistics.add_time('Wait Sample begin')
+        counter_samples = 0
         for timestamp, x, y in self.iter_poll_lockin():
+            counter_samples += 1
             obj_criterion.append_values(timestamp, x, y)
             watchdog()
             if obj_criterion.satisfied():
                 if obj_criterion.skip_count > 0:
                     self._skip_count = obj_criterion.skip_count
                 self._last_criterion = obj_criterion
+                self.statistics.add_counter('Wait Sample', counter_samples)
+                self.statistics.add_time('Wait Sample end')
+                self.statistics.end_line()
                 return obj_criterion
+        assert False
 
 
 if __name__ == '__main__':
