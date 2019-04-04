@@ -79,10 +79,10 @@ class Statistics:
     def add(self, signal_name, unit_name, value):
         if self.first_line:
             self.list_signal_name.append(signal_name)
-            self.list_unit_name.append(f'[{unit_name}]')
+            self.list_unit_name.append('[{}]'.format(unit_name))
 
         if self.dict_values.get(signal_name, False) is not False:
-            raise Exception(f'Signal {signal_name} used twice!')
+            raise Exception('Signal {} used twice!'.format(signal_name))
         self.dict_values[signal_name] = str(value)
     
     def add_time(self, signal_name):
