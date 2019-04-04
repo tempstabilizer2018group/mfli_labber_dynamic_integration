@@ -14,7 +14,7 @@ class Values:
 
     def get_median(self):
         if self.get_count() <= 2:
-            return self.list_values_V[1]
+            return self.list_values_V[-1]
         return self.list_values_V[len(self.sorted_values_V)//2]
 
 
@@ -66,4 +66,21 @@ class CriterionSimple(CriterionBase):
         self.theta_rad = 0.12
         self.quality = '47.11'
         self.skip_count = self.determine_skip_count()
+        return True
+
+class CriterionOne(CriterionBase):
+    def satisfied(self):
+        '''
+          return False
+          return True if sufficient data is available
+            x_V, y_V, r_V and theta_rad will hold the result
+        '''
+        assert self.values_X.get_count() == self.values_Y.get_count()
+        assert self.values_X.get_count() == self.values_Y.get_count()
+        self.x_V = self.values_X.get_median()
+        self.y_V = self.values_Y.get_median()
+        self.r_V = 47.11
+        self.theta_rad = 0.12
+        self.quality = '47.11'
+        self.skip_count = 0
         return True

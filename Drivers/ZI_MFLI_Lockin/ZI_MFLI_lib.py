@@ -20,7 +20,7 @@ libs_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '
 assert os.path.exists(libs_directory), 'Directory does not exist: {}'.format(libs_directory)
 sys.path.append(libs_directory)
 
-import imp
+import importlib
 import time
 import logging
 import pprint
@@ -42,8 +42,8 @@ ch.setFormatter(formatter)
 # add ch to logger
 logger.addHandler(ch)
 
-logger.setLevel(logging.DEBUG)
-# logger.setLevel(logging.INFO)
+# logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 import zhinst
 import zhinst.ziPython
@@ -53,6 +53,8 @@ import criterion
 class Statistics:
     def __init__(self):
         self.time_start_s = None
+        self.time_start_line_s = None
+        self.line_num = 0
         self.first_line = True
         self.dict_values = {}
         self.dict_header = {}
@@ -61,6 +63,12 @@ class Statistics:
 
         filename = __file__.replace('.py', '_log.csv')
         self.f = open(filename, 'w')
+
+    def start_line(self, time_start_s):
+        if self.time_start_s is None:
+            self.time_start_s = time_start_s
+        self.time_start_line_s = time_start_s
+        self.add('line_begin', 's', self.time_start_line_s-self.time_start_s)
 
     def end_line(self):
         if self.first_line:
@@ -87,10 +95,8 @@ class Statistics:
         self.dict_values[signal_name] = str(value)
     
     def add_time(self, signal_name):
-        if self.time_start_s is None:
-            self.time_start_s = time.time()
-        time_s = time.time() - self.time_start_s
-        self.add(signal_name, 's', time_s)
+        time_s = time.time() - self.time_start_line_s
+        self.add(signal_name, 'ms', int(time_s*1000.0))
 
     def add_counter(self, signal_name, counter):
         self.add(signal_name, '1', counter)
@@ -98,8 +104,13 @@ class Statistics:
     def dump_line(self, list_line):
         self.f.write('\t'.join(list_line))
         self.f.write('\n')
-        self.f.flush()
+        self.line_num += 1
+        if self.line_num % 25 == 0:
+            # 200ms * 25 = 5s
+            self.f.flush()
 
+    def flush(self):
+        self.f.flush()
 
 try:
     import InstrumentDriver
@@ -137,6 +148,7 @@ class Zi_Device:
         logger.debug('self.clockbase_ms: %d' % self.clockbase_ms)
 
     def disconnect(self):
+        self.statistics.flush()
         self.daq.disconnect()
 
     def get_time_diff_ms(self, timestamp_before, timestamp_after):
@@ -228,7 +240,8 @@ class Zi_Device:
         # filename = os.path.join(my_directory, 'log_mfli.txt')
         filename = __file__.replace('.py', '_log.txt')
         fh = logging.FileHandler(filename)
-        fh.setLevel(logging.DEBUG)
+        # fh.setLevel(logging.DEBUG)
+        fh.setLevel(logging.INFO)
         logger.addHandler(fh)
 
         # Reset
@@ -339,78 +352,67 @@ class Zi_Device:
         self._loopback_value = self._loopback_value_true_V if self._loopback_flag else self._loopback_value_false_V
         self.setValue('/auxouts/3/offset', float(self._loopback_value))
 
-    def iter_poll_loopback(self):
-        while True:
-            data1 = self.poll(duration_s=0.1)
-            data2 = data1[self._subscribe_path]
-            if not data1:
-                # No data anymore
-                logger.debug('iter_poll_loopback: no data')
-                continue
-
-            list_timestamp = data2['timestamp']
-            list_value = data2['auxin0']
-            logger.debug('iter_poll_loopback: list_value: ' + str(list_value))
-            assert len(list_timestamp) == len(list_value)
-            value = list_value[-1]
-            logger.debug('iter_poll_loopback: value: ' + str(value))
-            yield value
-
-    def iter_poll_lockin(self):
-        counter_no_data = 0
-        counter_same_x = 0
-        x_last = None
-        timestamp_start = None
+    def iter_poll(self):
         while True:
             data1 = self.poll(duration_s=0.01)
             if not data1:
                 # No data anymore
-                # logger.debug('iter_poll_lockin: no data')
-                counter_no_data += 1
+                logger.debug('iter_poll: no data')
                 continue
             data2 = data1[self._subscribe_path]
 
             list_timestamp = data2['timestamp']
             list_x = data2['x']
             list_y = data2['y']
+            list_auxin0 = data2['auxin0']
+
             assert len(list_timestamp) == len(list_x)
             assert len(list_timestamp) == len(list_y)
-            logger.debug('iter_poll_lockin: list_timeout: ' + str(list_timestamp))
-            for timestamp, x, y in zip(list_timestamp, list_x, list_y):
-                if x_last == None:
-                    # First time: special case: remember the x and now start for watching for changes of x
-                    x_last = x
-                    timestamp_start = timestamp
-                    continue
-                if x_last != x:
-                    x_last = x
-                    if timestamp_start is not None:
-                        logger.debug('iter_poll_lockin: delta timestamp: {}ms'.format(self.get_time_diff_ms(timestamp_start, timestamp)))
-                    logger.debug('iter_poll_lockin: counter_no_data, counter_same_x: {} {}'.format(counter_no_data, counter_same_x))
-                    logger.debug('iter_poll_lockin: timestamp, x, y: {} {:1.9f} {:1.9f}'.format(timestamp, x, y))
+            assert len(list_timestamp) == len(list_auxin0)
 
-                    yield timestamp, x, y
+            for values in zip(list_timestamp, list_x, list_y, list_auxin0):
+                yield values
 
-                    timestamp_start = timestamp
-                    counter_no_data = 0
-                    counter_same_x = 0
-                    continue
+    def iter_poll_loopback(self):
+        for _timestamp, _x, _y, auxin0 in self.iter_poll():
+            yield auxin0
 
-                # TODO: Hack, constant
-                timeout_ms = 2*30
-                if self.get_time_diff_ms(timestamp_start, timestamp) > timeout_ms:
-                    # It may happen, that x is 0.0000, so 'x_last != x' will never be true.
-                    # We safe us from entering an endless loop
-                    logger.debug("iter_poll_lockin: x didn't change within %d ms!" % timeout_ms)
-                    yield timestamp, x, y
+    def iter_poll_lockin(self):
+        counter_same_x = 0
+        x_last = None
+        timestamp_start = None
+        for timestamp, x, y, _auxin0 in self.iter_poll():
+            if x_last == None:
+                # First time: special case: remember the x and now start for watching for changes of x
+                x_last = x
+                timestamp_start = timestamp
+                continue
+            if x_last != x:
+                x_last = x
+                if timestamp_start is not None:
+                    logger.debug('iter_poll_lockin: delta timestamp: {}ms'.format(self.get_time_diff_ms(timestamp_start, timestamp)))
+                logger.debug('iter_poll_lockin: counter_same_x: {}'.format(counter_same_x))
+                logger.debug('iter_poll_lockin: timestamp, x, y: {} {:1.9f} {:1.9f}'.format(timestamp, x, y))
 
-                    timestamp_start = timestamp
-                    counter_no_data = 0
-                    counter_trash_loopback = 0
-                    counter_same_x = 0
-                    continue
+                yield timestamp, x, y
 
-                counter_same_x += 1
+                timestamp_start = timestamp
+                counter_same_x = 0
+                continue
+
+            # TODO: Hack, constant
+            timeout_ms = 2*30
+            if self.get_time_diff_ms(timestamp_start, timestamp) > timeout_ms:
+                # It may happen, that x is 0.0000, so 'x_last != x' will never be true.
+                # We safe us from entering an endless loop
+                logger.debug("iter_poll_lockin: x didn't change within %d ms!" % timeout_ms)
+                yield timestamp, x, y
+
+                timestamp_start = timestamp
+                counter_same_x = 0
+                continue
+
+            counter_same_x += 1
 
 
     def get_lockin(self):
@@ -433,13 +435,14 @@ class Zi_Device:
                 raise Exception('Watchdog')
 
         timeA = time.time()
+        self.statistics.start_line(timeA)
 
         # Trash all incoming data
         self.statistics.add_time('Trash begin')
         trash_counter = 0
         while True:
             trash_counter += 1
-            sample = self.poll(duration_s=0.001)
+            sample = self.poll(duration_s=0.0001)
             if sample is None:
                 break
 
@@ -463,7 +466,8 @@ class Zi_Device:
 
         if timeA > self.time_last_import + 5.0:
             self.time_last_import = timeA
-            imp.reload(criterion)
+            importlib.reload(criterion)
+            logger.debug('reloaded module "criterion"')
             self.criterion_class = getattr(criterion, self.criterion_name, None)
 
         obj_criterion = self.criterion_class(self._last_criterion)
@@ -497,6 +501,7 @@ class Zi_Device:
                 self.statistics.add_time('Wait Sample end')
                 self.statistics.end_line()
                 return obj_criterion
+
         assert False
 
 
@@ -515,7 +520,8 @@ if __name__ == '__main__':
     if True:
         dev = Zi_Device(dev_name)
         dev.init_mfli_lock_in()
-        while True:
+        dev.set_criterion('CriterionOne')
+        for i in range(10):
             # x, y, r, theta = dev.get_lockin()
             obj_criterion = dev.get_lockin()
             logger.info('get_lockin() returned {c.x_V:1.9f} {c.y_V:1.9f} {c.r_V:1.9f} {c.theta_rad:1.3f}'.format(c=obj_criterion))
