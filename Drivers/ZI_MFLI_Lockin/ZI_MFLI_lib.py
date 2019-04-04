@@ -20,6 +20,7 @@ libs_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '
 assert os.path.exists(libs_directory), 'Directory does not exist: {}'.format(libs_directory)
 sys.path.append(libs_directory)
 
+import imp
 import time
 import logging
 import pprint
@@ -112,6 +113,7 @@ class Zi_Device:
     def __init__(self, dev):
         """Perform the operation of opening the instrument connection"""
         assert dev != ''
+        self.time_last_import = time.time()
         self.statistics = Statistics()
         self.voltage = 0.0
         self.dev = dev
@@ -458,6 +460,11 @@ class Zi_Device:
             logger.debug('waiting for loopback-reply')
         logger.debug('got loopback-reply')
         self.statistics.add_time('Loopback end')
+
+        if timeA > self.time_last_import + 5.0:
+            self.time_last_import = timeA
+            imp.reload(criterion)
+            self.criterion_class = getattr(criterion, self.criterion_name, None)
 
         obj_criterion = self.criterion_class(self._last_criterion)
 
