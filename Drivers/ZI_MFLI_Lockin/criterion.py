@@ -43,6 +43,8 @@ class CriterionBase:
 
 class CriterionSimple(CriterionBase):
     def determine_skip_count(self):
+        return 0
+
         if self.x_V > 5e-6:
             return 0
         if self.x_V > 2e-6:
@@ -64,5 +66,4 @@ class CriterionSimple(CriterionBase):
         self.theta_rad = 0.12
         self.quality = '47.11'
         self.skip_count = self.determine_skip_count()
-        # self.skip_count = 0
         return True
