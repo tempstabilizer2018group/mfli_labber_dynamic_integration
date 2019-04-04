@@ -26,6 +26,7 @@ class Driver(InstrumentDriver.InstrumentWorker):
 
     def performClose(self, bError=False, options={}):
         """Perform the close instrument connection operation"""
+        self.ziDevice.stop_logging()
         self.log("%s: performClose: before disconnect" % __file__, level=30)
         self.ziDevice.disconnect()
         self.log("%s: performClose: after disconnect" % __file__, level=30)
@@ -34,6 +35,12 @@ class Driver(InstrumentDriver.InstrumentWorker):
         if quant.name in ['criterion',]:
             self.ziDevice.set_criterion(value)
             return self.ziDevice.get_criterion()
+        if quant.name in ['logging',]:
+            if value:
+                self.ziDevice.start_logging()
+            else:
+                self.ziDevice.stop_logging()
+            return self.ziDevice.is_logging()
 
     def _performGetValue(self, quant, options):
         assert self.obj_criterion is not None
@@ -77,6 +84,8 @@ class Driver(InstrumentDriver.InstrumentWorker):
 
         if quant.name in ['criterion',]:
             return self.ziDevice.get_criterion()
+        if quant.name in ['logging',]:
+            return self.ziDevice.is_logging()
 
         if self.isFirstCall(options):
             assert self.obj_criterion is None
