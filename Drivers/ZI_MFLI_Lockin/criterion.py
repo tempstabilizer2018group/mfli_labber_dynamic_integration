@@ -3,9 +3,15 @@ import math
 import time
 import pickle
 
-def get_pickle_filename():
+def get_pickle_filename(filename_helper):
     time_string = time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime())
-    return os.path.join(os.path.dirname(__file__), 'data_{}.pickle'.format(time_string))
+    return os.path.join(os.path.dirname(__file__), 'data_{}{}.pickle'.format(time_string, filename_helper))
+
+def pickle_dump(list_criterions, filename_helper):
+    l = list(map(lambda c: c.get_values(), list_criterions))
+    filename = get_pickle_filename(filename_helper)
+    with open(filename, 'wb') as f:
+        pickle.dump(l, f)
 
 def iter_xy_pickle(filename):
     with open(filename, 'rb') as f:
@@ -29,6 +35,33 @@ def iter_criterion_pickle(criterion_class, filename):
         obj_criterion_last = obj_criterion
 
         yield obj_criterion
+
+def plot_stepresponse(filename, show=False, filename_save=None):
+    import matplotlib.pyplot as plt
+
+    list_criterion = list(iter_criterion_pickle(CriterionStepresponse, filename))
+    # Skip the first: It doesn't have a 'last' which is needed for the calculation
+    list_criterion = list_criterion[1:]
+    list_stepresponses_X = list(map(lambda crit: crit.get_stepresponse(), list_criterion))
+    list_stepresponses_X = sorted(list_stepresponses_X, key=lambda crit: crit.rating, reverse=True)
+    count = len(list_stepresponses_X)//10
+    list_stepresponses_X = list_stepresponses_X[:count]
+
+    fig, ax = plt.subplots()
+    
+    for stepresponse in list_stepresponses_X:
+        list_Y = list(stepresponse.list_values_scaled)
+        list_X = list(range(0, len(list_Y)))
+        ax.plot(list_X, list_Y)
+
+    ax.set(xlabel='lockin periods (33ms)', ylabel='step 0 to 1', title='Step response normalized')
+    ax.set_ylim(ymin=0)
+    ax.grid()
+
+    if filename_save is not None:
+        fig.savefig(filename_save)
+    if show:
+        plt.show()
 
 class Values:
     def __init__(self):
@@ -107,7 +140,9 @@ class CriterionSimple(CriterionBase):
         if self.x_V < 2e-6:
             # The signal is small
             # success
-            return True
+            if self.get_count() >= 6:
+                # success
+                return True
         if self.x_V < 4e-6:
             # The signal is medium
             if self.get_count() >= 6:

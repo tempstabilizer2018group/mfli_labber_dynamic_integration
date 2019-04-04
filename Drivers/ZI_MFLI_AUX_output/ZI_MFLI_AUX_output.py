@@ -34,10 +34,17 @@ class Driver(InstrumentDriver.InstrumentWorker):
         self.log("%s: performClose: after disconnect" % __file__, level=30)
 
     def performSetValue(self, quant, value, sweepRate=0.0, options={}):
+        if quant.name in ['outputform',]:
+            self.ziDevice.output_form = value
+            return self.ziDevice.output_form
+
         if quant.name in ['Voltage',]:
             self.ziDevice.set_voltage(value)
             return self.ziDevice.get_voltage()
 
     def performGetValue(self, quant, options={}):
+        if quant.name in ['outputform',]:
+            return self.ziDevice.output_form
+
         if quant.name in ['Voltage',]:
             return self.ziDevice.get_voltage()

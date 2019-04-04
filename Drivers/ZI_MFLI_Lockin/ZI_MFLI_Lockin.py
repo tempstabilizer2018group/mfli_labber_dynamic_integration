@@ -35,12 +35,14 @@ class Driver(InstrumentDriver.InstrumentWorker):
         if quant.name in ['criterion',]:
             self.ziDevice.set_criterion(value)
             return self.ziDevice.get_criterion()
-        if quant.name in ['logging',]:
-            if value:
-                self.ziDevice.start_logging()
-            else:
-                self.ziDevice.stop_logging()
-            return self.ziDevice.is_logging()
+
+        if quant.name in ['measure_loopback',]:
+            self.ziDevice.measure_loopback = value
+            return self.ziDevice.measure_loopback
+
+        if quant.name in ['logging_save_file',]:
+            self.ziDevice.stop_logging()
+            self.ziDevice.stop_logging()
 
     def _performGetValue(self, quant, options):
         assert self.obj_criterion is not None
@@ -84,8 +86,9 @@ class Driver(InstrumentDriver.InstrumentWorker):
 
         if quant.name in ['criterion',]:
             return self.ziDevice.get_criterion()
-        if quant.name in ['logging',]:
-            return self.ziDevice.is_logging()
+
+        if quant.name in ['measure_loopback',]:
+            return self.ziDevice.measure_loopback
 
         if self.isFirstCall(options):
             assert self.obj_criterion is None

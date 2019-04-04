@@ -130,6 +130,7 @@ class Zi_Device:
     def __init__(self, dev):
         """Perform the operation of opening the instrument connection"""
         assert dev != ''
+        self.trash_before_measure = True
         self.measure_loopback = False
         self.skip_first_measurement = True
         self.start_using_last_measurement = True
@@ -170,10 +171,8 @@ class Zi_Device:
         if self.list_logging is None:
             return
 
-        l = list(map(lambda c: c.get_values(), self.list_logging))
-        filename = criterion.get_pickle_filename()
-        with open(filename, 'wb') as f:
-            pickle.dump(l, f)
+        filename_helper = '_{}_{}'.format(self.output_form, self.criterion_name)
+        criterion.pickle_dump(self.list_logging, filename_helper)
         self.list_logging = None
 
     def is_logging(self):
@@ -555,7 +554,8 @@ class Zi_Device:
         self.statistics.start_line(self._time_start_lockin)
 
         # Trash all incoming data
-        self._trash_measurements()
+        if self.trash_before_measure:
+            self._trash_measurements()
 
         _iter_poll = self._iter_poll()
 
