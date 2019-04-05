@@ -45,6 +45,7 @@ def plot_stepresponse(filename, show=False, filename_save=None):
     list_stepresponses_X = list(map(lambda crit: crit.get_stepresponse(), list_criterion))
     list_stepresponses_X = sorted(list_stepresponses_X, key=lambda crit: crit.rating, reverse=True)
     count = len(list_stepresponses_X)//10
+    count = min(count, 50)
     list_stepresponses_X = list_stepresponses_X[:count]
 
     fig, ax = plt.subplots()
@@ -140,7 +141,7 @@ class CriterionSimple(CriterionBase):
         if self.x_V < 2e-6:
             # The signal is small
             # success
-            if self.get_count() >= 6:
+            if self.get_count() >= 1:
                 # success
                 return True
         if self.x_V < 4e-6:
