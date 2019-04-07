@@ -39,12 +39,17 @@ def iter_criterion_pickle(criterion_class, filename):
 def plot_stepresponse(filename, show=False, filename_save=None):
     import matplotlib.pyplot as plt
 
-    list_criterion = list(iter_criterion_pickle(CriterionStepresponse, filename))
+    list_criterion = iter_criterion_pickle(CriterionStepresponse, filename)
     # Skip the first: It doesn't have a 'last' which is needed for the calculation
-    list_criterion = list_criterion[1:]
-    list_stepresponses_X = list(map(lambda crit: crit.get_stepresponse(), list_criterion))
+    next(list_criterion)
+    # Only take the measurements which contain 3 or more samples
+    list_criterion = filter(lambda crit: crit.get_count() >= 3, list_criterion)
+    # Get the x-stepresponse for every criterion
+    list_stepresponses_X = list(map(lambda crit: crit.get_stepresponse_X(), list_criterion))
     list_stepresponses_X = sorted(list_stepresponses_X, key=lambda crit: crit.rating, reverse=True)
+    # Take 10% of the stepresponses with the highest rating
     count = len(list_stepresponses_X)//10
+    # But never more the 50
     count = min(count, 50)
     list_stepresponses_X = list_stepresponses_X[:count]
 
@@ -195,9 +200,13 @@ class Stepresponse:
         return l
 
 class CriterionStepresponse(CriterionBase):
-    def get_stepresponse(self):
+    def get_stepresponse_X(self):
         stepresponse_X = Stepresponse(self.values_X, self.last_criterion.values_X)
         return stepresponse_X
+
+    def get_stepresponse_Y(self):
+        stepresponse_Y = Stepresponse(self.values_Y, self.last_criterion.values_Y)
+        return stepresponse_Y
 
     def satisfied(self):
         assert False

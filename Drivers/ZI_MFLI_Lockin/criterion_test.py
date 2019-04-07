@@ -5,7 +5,7 @@ import criterion
 if __name__ == '__main__':
     # filename = os.path.join(os.path.dirname(__file__), 'data_2019-04-04_19-42-04.pickle')
     # filename = os.path.join(os.path.dirname(__file__), 'data_2019-04-04_21-06-06.pickle')
-    for filename in os.listdir(os.path.dirname(__file__)):
+    for filename in sorted(os.listdir(os.path.dirname(__file__))):
         if not filename.endswith('.pickle'):
             continue
         filename_save = filename.replace('.pickle', '.png')

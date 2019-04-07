@@ -130,7 +130,7 @@ class Zi_Device:
     def __init__(self, dev):
         """Perform the operation of opening the instrument connection"""
         assert dev != ''
-        self.trash_before_measure = True
+        self.trash_previous_samples = True
         self.measure_loopback = False
         self.skip_first_measurement = True
         self.start_using_last_measurement = True
@@ -556,7 +556,7 @@ class Zi_Device:
         self.statistics.start_line(self._time_start_lockin)
 
         # Trash all incoming data
-        if self.trash_before_measure:
+        if self.trash_previous_samples:
             self._trash_measurements()
 
         _iter_poll = self._iter_poll()

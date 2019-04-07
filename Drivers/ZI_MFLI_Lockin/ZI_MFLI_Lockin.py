@@ -49,6 +49,10 @@ class Driver(InstrumentDriver.InstrumentWorker):
             self.ziDevice.measure_loopback = value
             return self.ziDevice.measure_loopback
 
+        if quant.name in ['trash_previous_samples',]:
+            self.ziDevice.trash_previous_samples = value
+            return self.ziDevice.trash_previous_samples
+
         if quant.name in ['logging_save_file',]:
             self.ziDevice.stop_logging()
             self.ziDevice.start_logging()
@@ -104,6 +108,9 @@ class Driver(InstrumentDriver.InstrumentWorker):
 
         if quant.name in ['measure_loopback',]:
             return self.ziDevice.measure_loopback
+
+        if quant.name in ['trash_previous_samples',]:
+            return self.ziDevice.trash_previous_samples
 
         if self.isFirstCall(options):
             assert self.obj_criterion is None
