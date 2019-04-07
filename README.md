@@ -1,7 +1,9 @@
 # mfli_labber_dynamic_integration
+
 Zurich Instruments MFLI and Labber using dynamic integration time to accelerate measurements
 
 ## Directory structure
+
 - auxiliary: Additional information and files which is somehow needed but not important
 - `configuration`: The configuration of the Labber `Instrument Server` and `Measurements Editor` used with the testbox
 - `Drivers`: Labber drivers written for this study
@@ -13,31 +15,41 @@ Zurich Instruments MFLI and Labber using dynamic integration time to accelerate 
 
 Signal --> System --> Lockin amplifier --> measurement criterion
 
-![](readme_setup_equipment.jpg)
+The `system` will be eventually experiments at nanophysics@eth. The `system` for this study is the `testbox` in the foto below. The lockin amplifier is the blue MFLI.
 
-![](readme_setup_logic.png)
+![Equipment](readme_setup_equipment.jpg)
+
+The setup used. In the middle the lockin amplifier an to the right tye `system` implemented using a voltage devider and Photorelays.
+
+![Logic](readme_setup_logic.png)
 
 ### Software
+
 
 Zurich Instruments MFLI --> Intelligent Drive using Zurich Instruments Python API (written for this study) --> Labber Instrument Driver (written for this study) -> Labber Instrument Server --> Labber Measurements Editor
 
 ## Features
 
 ### System
+
 The system simulates a typical situation: Low signal, but somewhere a high signal. The system is implemented in the `testbox` which fits nicely on a desk.
+
+![Testbox Topview](readme_testbox_topview.jpg)
 
 The system is controlled by a labber driver where three behaviours may be selected `peak`, `horn` and `step`.
 
-![](readme_system_peak.png)
+![Output Peak](readme_system_peak.png)
 
-![](readme_system_horn.png)
+![Output Horn](readme_system_horn.png)
 
-![](readme_system_step.png)
+![Output Step](readme_system_step.png)
 
 ### Intelligent Driver
+
 The lockin amplifier measures constantly using 30Hz. The `Intelligent Driver` optimizes the measering time. Where the signal is not interessting, the measurement is aborted after 1 sample, if there is some interesting peak, a measurement may use 30 samples. This is a weigh up between accurency and measuring speed.
 
 This is the implementation of a criterion
+
 ``` Python
 class CriterionSimple(CriterionBase):
     def satisfied(self):
@@ -64,19 +76,24 @@ class CriterionSimple(CriterionBase):
         # We need more samples
         return False
 ```
+
 Above code will be called after every Lockin sample. It does the following:
+
 - If the signal is smaller than 2e-6 V only 1 sample is required
 - If the signal is smaller than 4e-6 V 6 samples are required
 - At most 20 samples are collected.
+
 The returned X and Y values are the median of the collected samples. The first two samples are thrown away (empirically determined settle time)
 
-![](readme_criterion_simple.png)
+![Criterion Simple](readme_criterion_simple.png)
+
 Above image shows a measurement with this intelligent logic: Small signals are scattered but high values are exact. The time improvement is a factor of 10.
 
-![](readme_criterion_10.png)
+![Criterion 10](readme_criterion_10.png)
 Above image shows a measurment the conventional way taking always 10 samples. Note that small signals are measured with higher accuracy (the data which is not interesting), but the interesting higher signales are still measured with 10 samples, which is less then crierium before which used 20 samples.
 
-# TODO
+## TODO
+
 - Document Sources
 - Feature List
 - User Guide
