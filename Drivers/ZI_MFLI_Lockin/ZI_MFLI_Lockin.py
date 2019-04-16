@@ -58,13 +58,12 @@ class Driver(InstrumentDriver.InstrumentWorker):
             self.ziDevice.start_logging()
 
         if quant.name in ['scaling',]:
-            return self.ziDevice.set_scaling(value)
+            self.ziDevice.set_scaling(value)
+            return self.ziDevice.get_scaling()
 
     def _performGetValue(self, quant, options):
         assert self.obj_criterion is not None
 
-        if quant.name in ['scaling',]:
-            return self.ziDevice.get_scaling()
         if quant.name in ['quality',]:
             return self.obj_criterion.quality
         if quant.name in ['X',]:
@@ -107,6 +106,9 @@ class Driver(InstrumentDriver.InstrumentWorker):
 
         if quant.name in ['Voltage',]:
             return self.ziDevice.get_voltage()
+
+        if quant.name in ['scaling',]:
+            return self.ziDevice.get_scaling()
 
         if quant.name in ['criterion',]:
             return self.ziDevice.get_criterion()
