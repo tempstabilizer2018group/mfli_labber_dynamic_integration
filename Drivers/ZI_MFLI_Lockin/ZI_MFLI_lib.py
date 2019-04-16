@@ -369,7 +369,7 @@ class Zi_Device:
         return self._scaling
 
     def set_scaling(self, scaling):
-        self._scaling = 1.0
+        self._scaling = scaling
         self._update_scaling()
 
     def _update_scaling(self):
