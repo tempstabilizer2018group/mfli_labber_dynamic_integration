@@ -139,6 +139,7 @@ class Zi_Device:
         self.time_last_import = time.time()
         self.statistics = Statistics()
         self.voltage = 0.0
+        self._scaling = 1.0
         self.dev = dev
         self.set_criterion(criterion.CriterionSimple.__name__)
         try:
