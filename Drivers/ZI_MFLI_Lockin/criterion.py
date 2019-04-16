@@ -75,20 +75,45 @@ class Values:
     
     def append_value(self, value_V):
         self.list_values_V.append(value_V)
-        self.sorted_values_V = sorted(self.list_values_V)
-  
+    
     def get_count(self):
         return len(self.list_values_V)
 
-    def get_median(self, skip=0):
-        if self.get_count() <= 2:
-            return self.list_values_V[-1]
-        # The point in the middle. If we skip the first datapoints, the middle moves to the right
-        middle = (len(self.sorted_values_V)+skip)//2
-        # If skip is big, watch out not to be out of range
-        middle = min(middle, len(self.sorted_values_V)-1)
-        return self.sorted_values_V[middle]
+    def get_sorted_values(self, skip=0):
+        '''
+          [List of float, V]
+          Returns a list of samples.
+          Skip the first samples. But always return at least one sample.
+        '''
+        # len(self.list_values_V) | skip | len_new
+        #                      1  |  2   |  1
+        #                      2  |  2   |  1
+        #                      3  |  2   |  1
+        #                      4  |  2   |  2
+        # ==> len_new must never be less than 1!
+        len_new = len(self.list_values_V)-skip
+        len_new = max(len_new, 1)
+        sorted_values_V = sorted(self.list_values_V[:len_new])
+        return sorted_values_V
+  
+    def get_mean(self, skip=0):
+        '''
+          [float, V]
+          Skip 'skip' samples and return mean of the remaining samples.
+        '''
+        sorted_values_V = self.get_sorted_values(skip=skip)
+        mean_V = sum(sorted_values_V)/len(sorted_values_V)
 
+    def get_median(self, skip=0):
+        '''
+          [float, V]
+          Skip 'skip' samples and return the median of the remaining samples.
+        '''
+        sorted_values_V = self.get_sorted_values(skip=skip)
+        # '//' would round down.
+        # 1+  : round up.
+        middle = (1+len(sorted_values_V))//2
+        return sorted_values_V[middle]
 
 class CriterionSkip:
     def __init__(self):

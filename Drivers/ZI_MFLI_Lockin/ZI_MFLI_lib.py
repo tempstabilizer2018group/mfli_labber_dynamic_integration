@@ -290,6 +290,7 @@ class Zi_Device:
 
         # Reset
         self._skip_count = 0
+        self._scaling = 1.0
         self._last_criterion = None
         self._loopback_flag = False
         self._loopback_value_false_V = 0.0
@@ -314,16 +315,15 @@ class Zi_Device:
         self.setValue('/sigouts/*/enables/0', 0)
 
         self.daq.sync()
-
         # Set
-        self.setValue('/sigins/0/scaling', 1.0)
         self.setValue('/sigins/0/diff', 0)
-        self.setValue('/sigins/0/float', 0)
+        self.setValue('/sigins/0/float', 1)
         self.setValue('/sigins/0/imp50', 0)
         self.setValue('/sigins/0/ac', 0)
         self.setValue('/sigins/0/on', 1)
         # self.setValue('/sigins/0/range', 3.0)
         self.setValue('/sigins/0/range', 0.001)
+        self._update_scaling()
 
         self.setValue('/sigouts/0/amplitudes/0', 1.414031982421875)
         self.setValue('/sigouts/0/autorange', 0)
@@ -363,6 +363,16 @@ class Zi_Device:
         time.sleep(0.1)
 
         self.init_mfli_aux_output()
+
+    def get_scaling(self):
+        return self._scaling
+
+    def set_scaling(self, scaling):
+        self._scaling = 1.0
+        self._update_scaling()
+
+    def _update_scaling(self):
+        self.setValue('/sigins/0/scaling', self._scaling)
 
     def _poll(self, duration_s=0.5):
         timeout_ms = 1

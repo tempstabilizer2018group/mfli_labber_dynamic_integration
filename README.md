@@ -79,9 +79,9 @@ class CriterionSimple(CriterionBase):
 
 Above code will be called after every Lockin sample. It does the following:
 
-- If the signal is smaller than 2e-6 V only 1 sample is required
-- If the signal is smaller than 4e-6 V 6 samples are required
-- At most 20 samples are collected.
+- If the signal is smaller than 2e-6 V only 1 sample is collected
+- If the signal is smaller than 4e-6 V 6 samples are collected
+- Else 20 samples are collected.
 
 The returned X and Y values are the median of the collected samples. The first two samples are thrown away (empirically determined settle time)
 
