@@ -139,7 +139,7 @@ class Zi_Device:
         self.time_last_import = time.time()
         self.statistics = Statistics()
         self.voltage = 0.0
-        self._scaling = 1.0
+        self._range = 0.1
         self.dev = dev
         self.set_criterion(criterion.CriterionSimple.__name__)
         try:
@@ -291,7 +291,7 @@ class Zi_Device:
 
         # Reset
         self._skip_count = 0
-        self._scaling = 1.0
+        self._range = 0.1
         self._last_criterion = None
         self._loopback_flag = False
         self._loopback_value_false_V = 0.0
@@ -322,9 +322,9 @@ class Zi_Device:
         self.setValue('/sigins/0/imp50', 0)
         self.setValue('/sigins/0/ac', 0)
         self.setValue('/sigins/0/on', 1)
-        # self.setValue('/sigins/0/range', 3.0)
-        self.setValue('/sigins/0/range', 0.001)
-        self._update_scaling()
+        self.setValue('/sigins/0/scaling', 1.0)
+        self.setValue('/sigins/0/autorange', 1.0)
+        self._update_range()
 
         self.setValue('/sigouts/0/amplitudes/0', 1.414031982421875)
         self.setValue('/sigouts/0/autorange', 0)
@@ -365,15 +365,18 @@ class Zi_Device:
 
         self.init_mfli_aux_output()
 
-    def get_scaling(self):
-        return self._scaling
+    def get_range(self):
+        return self._range
 
-    def set_scaling(self, scaling):
-        self._scaling = scaling
-        self._update_scaling()
+    def set_range(self, range):
+        self._range = range
+        self._update_range()
+        # We have to wait for the instrument to send back the value which was eventually used.
+        time.sleep(2.0)
+        self._range = self.getValue('/sigins/0/range')
 
-    def _update_scaling(self):
-        self.setValue('/sigins/0/scaling', self._scaling)
+    def _update_range(self):
+        self.setValue('/sigins/0/range', self._range)
 
     def _poll(self, duration_s=0.5):
         timeout_ms = 1
