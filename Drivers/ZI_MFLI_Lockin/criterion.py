@@ -103,6 +103,7 @@ class Values:
         '''
         sorted_values_V = self.get_sorted_values(skip=skip)
         mean_V = sum(sorted_values_V)/len(sorted_values_V)
+        return mean_V
 
     def get_median(self, skip=0):
         '''
@@ -110,10 +111,9 @@ class Values:
           Skip 'skip' samples and return the median of the remaining samples.
         '''
         sorted_values_V = self.get_sorted_values(skip=skip)
-        # '//' would round down.
-        # 1+  : round up.
-        middle = (1+len(sorted_values_V))//2
-        return sorted_values_V[middle]
+        middle = len(sorted_values_V)//2
+        median_V = sorted_values_V[middle]
+        return median_V
 
 class CriterionSkip:
     def __init__(self):
