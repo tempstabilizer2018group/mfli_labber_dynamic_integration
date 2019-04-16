@@ -208,6 +208,9 @@ class Zi_Device:
     def getInt(self, path):
         return self.__get(self.daq.getInt, path)
 
+    def getDouble(self, path):
+        return self.__get(self.daq.getDouble, path)
+
     def __set(self, f, fullpath, v):
         try:
             f(fullpath, v)
@@ -373,7 +376,7 @@ class Zi_Device:
         self._update_range()
         # We have to wait for the instrument to send back the value which was eventually used.
         time.sleep(2.0)
-        self._range = self.getValue('/sigins/0/range')
+        self._range = self.getDouble('/sigins/0/range')
 
     def _update_range(self):
         self.setValue('/sigins/0/range', self._range)
